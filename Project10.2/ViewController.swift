@@ -5,11 +5,12 @@
 //  Created by Maks Vogtman on 22/09/2022.
 //
 
+import LocalAuthentication
 import UIKit
 
 class ViewController: UICollectionViewController, UIImagePickerControllerDelegate & UINavigationControllerDelegate {
-    
     var people = [Person]()
+    var isAuthenticated = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -52,11 +53,50 @@ class ViewController: UICollectionViewController, UIImagePickerControllerDelegat
     
     
     @objc func addNewPerson() {
-        let picker = UIImagePickerController()
-        picker.allowsEditing = true
-        picker.delegate = self
-        present(picker, animated: true)
+        if isAuthenticated {
+            let picker = UIImagePickerController()
+            picker.allowsEditing = true
+            picker.delegate = self
+            
+            present(picker, animated: true)
+        } else {
+            authenticate()
+        }
     }
+    
+    
+    func authenticate() {
+        let context = LAContext()
+        var error: NSError?
+        
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            let reason = "Identify yourself!"
+            
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { [weak self] success, authenticationError in
+                DispatchQueue.main.async {
+                    if success {
+                        self?.isAuthenticated = true
+                        
+                        let picker = UIImagePickerController()
+                        picker.allowsEditing = true
+                        picker.delegate = self
+                        
+                        self?.present(picker, animated: true)
+                    
+                        } else {
+                        let ac = UIAlertController(title: "Authentication failed", message: "You could not be verified; please try again.", preferredStyle: .alert)
+                        ac.addAction(UIAlertAction(title: "OK", style: .default))
+                        self?.present(ac, animated: true)
+                }
+            }
+        }
+        
+    } else {
+        let ac = UIAlertController(title: "Biometry unavailabe", message: "Your device is not cinfigured for biometric authentication.", preferredStyle: .alert)
+        ac.addAction(UIAlertAction(title: "OK", style: .default))
+        present(ac, animated: true)
+    }
+}
 
     
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
@@ -81,17 +121,28 @@ class ViewController: UICollectionViewController, UIImagePickerControllerDelegat
     override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         let person = people[indexPath.item]
         
-        let ac = UIAlertController(title: "Rename person", message: nil, preferredStyle: .alert)
-        ac.addTextField()
+        let mainAlert = UIAlertController(title: "What would you want to do?", message: "Select an option", preferredStyle: .alert)
         
-        ac.addAction(UIAlertAction(title: "OK", style: .default) { [weak self, weak ac] _ in
-            guard let newName = ac?.textFields?[0].text else { return }
-            person.name = newName
+        mainAlert.addAction(UIAlertAction(title: "Rename person", style: .default) { [weak self] _ in
+            let ac = UIAlertController(title: "Rename", message: nil, preferredStyle: .alert)
+            ac.addTextField()
+            
+            ac.addAction(UIAlertAction(title: "OK", style: .default) { [weak self, weak ac] _ in
+                guard let newName = ac?.textFields?[0].text else { return }
+                person.name = newName
+                self?.collectionView.reloadData()
+            })
+            
+            ac.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            self?.present(ac, animated: true)
+        })
+        
+        mainAlert.addAction(UIAlertAction(title: "Delete name", style: .default) { [weak self] _ in
+            person.name = ""
             self?.collectionView.reloadData()
         })
         
-        ac.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(ac, animated: true)
+        present(mainAlert, animated: true)
     }
 }
 
